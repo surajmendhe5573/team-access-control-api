@@ -11,6 +11,7 @@ import { config } from './config/env.js';
 import errorHandler from './middlewares/default/errorHandler.js';
 import notFound from './middlewares/default/notFound.js';
 import { responseFormatter } from './middlewares/default/responseFormatter.js';
+import authRoutes from './modules/auth/auth.routes.js';
 
 const app = express();
 
@@ -20,12 +21,10 @@ app.use(morgan('dev'));
 app.use(
     cors({
         origin: (origin, callback) => {
-            // Allow requests with no origin (like mobile apps, curl, etc.)
             if (!origin) return callback(null, true);
 
             const allowedOrigins = config.cors.origins;
 
-            // Check if exact match or wildcard '*' is allowed
             if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
                 callback(null, true);
             } else {
@@ -53,7 +52,7 @@ app.get('/', (req: Request, res: Response) => {
     res.send('Server is running! Welcome to the backend');
 });
 
-// app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/auth', authRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
