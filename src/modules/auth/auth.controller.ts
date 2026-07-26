@@ -1,7 +1,8 @@
 import { NextFunction, Request, Response } from 'express';
 
-import AuthService from './auth.service.js';
 import { statusCode } from '../../utils/statusCode.js';
+
+import AuthService from './auth.service.js';
 
 const isLocal = process.env.NODE_ENV === 'local';
 const isDev = process.env.NODE_ENV === 'development';
