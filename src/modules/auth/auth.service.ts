@@ -1,10 +1,10 @@
-import crypto from 'node:crypto';
-
 import argon2 from 'argon2';
 import jwt, { SignOptions } from 'jsonwebtoken';
+import crypto from 'node:crypto';
 
 import prisma from '../../config/db.js';
 import { statusCode } from '../../utils/statusCode.js';
+
 import { JwtPayload, LoginInput, SignupInput, TokenPair } from './auth.types.js';
 
 const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET as string;
@@ -112,10 +112,9 @@ class AuthService {
                 where: { userId: existing.userId, revoked: false },
                 data: { revoked: true, revokedAt: new Date() },
             });
-            throw Object.assign(
-                new Error('Refresh token reuse detected, all sessions revoked'),
-                { statusCode: statusCode.UNAUTHORIZED },
-            );
+            throw Object.assign(new Error('Refresh token reuse detected, all sessions revoked'), {
+                statusCode: statusCode.UNAUTHORIZED,
+            });
         }
 
         if (existing.expiresAt < new Date()) {
