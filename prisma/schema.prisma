@@ -17,6 +17,7 @@ model User {
   isActive  Boolean  @default(true)
 
   refreshTokens RefreshToken[]
+  memberships   Membership[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -43,4 +44,36 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+
+  memberships Membership[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("organizations")
+}
+
+model Membership {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String
+
+  // Plain string for now — becomes a real relation to Role in Phase 5
+  role           String   @default("OWNER")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  joinedAt DateTime @default(now())
+
+  @@unique([organizationId, userId]) // one membership per user per org
+  @@index([organizationId])
+  @@index([userId])
+  @@map("memberships")
 }
