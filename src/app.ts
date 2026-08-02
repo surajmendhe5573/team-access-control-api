@@ -12,6 +12,7 @@ import errorHandler from './middlewares/default/errorHandler.js';
 import notFound from './middlewares/default/notFound.js';
 import { responseFormatter } from './middlewares/default/responseFormatter.js';
 import authRoutes from './modules/auth/auth.routes.js';
+import memberRoutes from './modules/members/member.route.js';
 import organizationRoutes from './modules/organizations/organization.routes.js';
 
 const app = express();
@@ -55,6 +56,7 @@ app.get('/', (req: Request, res: Response) => {
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/organizations', organizationRoutes);
+app.use('/:id/members', memberRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
