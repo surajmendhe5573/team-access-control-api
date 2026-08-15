@@ -34,7 +34,7 @@ export default class MemberController {
             const userId = req.user!.sub;
             const { params, body } = req.validated as {
                 params: { id: string };
-                body: { email: string; role: string };
+                body: { email: string; roleName: string };
             };
             const member = await this.memberService.add(params.id, userId, body);
             res.success('Member added successfully', { member }, statusCode.CREATED);

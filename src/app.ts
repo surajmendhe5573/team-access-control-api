@@ -14,6 +14,7 @@ import { responseFormatter } from './middlewares/default/responseFormatter.js';
 import authRoutes from './modules/auth/auth.routes.js';
 import memberRoutes from './modules/members/member.route.js';
 import organizationRoutes from './modules/organizations/organization.routes.js';
+import permissionRoutes from './modules/permissions/permission.routes.js';
 
 const app = express();
 
@@ -57,6 +58,7 @@ app.get('/', (req: Request, res: Response) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/organizations', organizationRoutes);
 app.use('/:id/members', memberRoutes);
+app.use('/api/v1/permissions', permissionRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

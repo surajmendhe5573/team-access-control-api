@@ -3,6 +3,7 @@ import { Router } from 'express';
 import authenticate from '../../middlewares/authenticate.js';
 import validate from '../../middlewares/default/validate.js';
 import memberRoutes from '../members/member.route.js';
+import roleRoutes from '../roles/role.routes.js';
 
 import OrganizationController from './organization.controller.js';
 import {
@@ -16,6 +17,7 @@ const organizationController = new OrganizationController();
 
 router.use(authenticate);
 router.use('/:id/members', memberRoutes);
+router.use('/:id/roles', roleRoutes);
 
 router.post('/', validate(createOrganizationSchema), organizationController.create);
 router.get('/', organizationController.list);

@@ -1,6 +1,7 @@
 import prisma from '../../config/db.js';
 import { generateSlug } from '../../utils/generateSlug.js';
 import { statusCode } from '../../utils/statusCode.js';
+import roleService from '../roles/role.service.js';
 
 import { CreateOrganizationInput, OrgRole, UpdateOrganizationInput } from './organization.types.js';
 
@@ -9,15 +10,16 @@ class OrganizationService {
         const slug = generateSlug(data.name);
 
         const organization = await prisma.organization.create({
+            data: { name: data.name, slug },
+        });
+
+        const roleIds = await roleService.seedDefaultRoles(organization.id);
+
+        await prisma.membership.create({
             data: {
-                name: data.name,
-                slug,
-                memberships: {
-                    create: {
-                        userId,
-                        role: OrgRole.OWNER,
-                    },
-                },
+                organizationId: organization.id,
+                userId,
+                roleId: roleIds.OWNER,
             },
         });
 
@@ -27,12 +29,12 @@ class OrganizationService {
     async listForUser(userId: string) {
         const memberships = await prisma.membership.findMany({
             where: { userId },
-            include: { organization: true },
+            include: { organization: true, role: true },
         });
 
         return memberships.map((m) => ({
             ...m.organization,
-            myRole: m.role,
+            myRole: m.role.name,
         }));
     }
 
@@ -49,7 +51,7 @@ class OrganizationService {
 
         const membership = await this.assertMembership(organizationId, userId);
 
-        return { ...organization, myRole: membership.role };
+        return { ...organization, myRole: membership.role.name };
     }
 
     async update(organizationId: string, userId: string, data: UpdateOrganizationInput) {
@@ -64,7 +66,7 @@ class OrganizationService {
         }
 
         const membership = await this.assertMembership(organizationId, userId);
-        this.assertRole(membership.role, [OrgRole.OWNER, OrgRole.ADMIN]);
+        this.assertRole(membership.role.name, [OrgRole.OWNER, OrgRole.ADMIN]);
 
         const organization = await prisma.organization.update({
             where: { id: organizationId },
@@ -86,15 +88,17 @@ class OrganizationService {
         }
 
         const membership = await this.assertMembership(organizationId, userId);
-        this.assertRole(membership.role, [OrgRole.OWNER]);
+        this.assertRole(membership.role.name, [OrgRole.OWNER]);
 
         await prisma.organization.delete({ where: { id: organizationId } });
     }
 
-    // Internal guards
+    // ---------- Internal guards ----------
+
     private async assertMembership(organizationId: string, userId: string) {
         const membership = await prisma.membership.findUnique({
             where: { organizationId_userId: { organizationId, userId } },
+            include: { role: true },
         });
 
         if (!membership) {
@@ -103,11 +107,11 @@ class OrganizationService {
             });
         }
 
-        return membership;
+        return membership; // membership.role.name now available
     }
 
-    private assertRole(currentRole: string, allowed: string[]): void {
-        if (!allowed.includes(currentRole)) {
+    private assertRole(currentRoleName: string, allowed: string[]): void {
+        if (!allowed.includes(currentRoleName)) {
             throw Object.assign(new Error('You do not have permission to perform this action'), {
                 statusCode: statusCode.FORBIDDEN,
             });

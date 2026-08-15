@@ -11,7 +11,7 @@ datasource db {
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
-  password  String   
+  password  String
   name      String?
 
   isActive  Boolean  @default(true)
@@ -52,6 +52,7 @@ model Organization {
   slug      String   @unique
 
   memberships Membership[]
+  roles       Role[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -63,17 +64,61 @@ model Membership {
   id             String   @id @default(uuid())
   organizationId String
   userId         String
-
-  // Plain string for now — becomes a real relation to Role in Phase 5
-  role           String   @default("OWNER")
+  roleId         String
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id])
 
   joinedAt DateTime @default(now())
 
-  @@unique([organizationId, userId]) // one membership per user per org
+  @@unique([organizationId, userId])
   @@index([organizationId])
   @@index([userId])
+  @@index([roleId])
   @@map("memberships")
+}
+
+model Role {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String   // "OWNER", "ADMIN", "MEMBER", "VIEWER", or custom
+  isSystem       Boolean  @default(false) // true for the 4 seeded defaults — blocks delete/rename
+
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships     Membership[]
+  rolePermissions RolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  key         String   @unique // e.g. "users.read", "billing.write"
+  description String?
+
+  rolePermissions RolePermission[]
+
+  createdAt DateTime @default(now())
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String @id @default(uuid())
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
 }

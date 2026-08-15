@@ -2,8 +2,6 @@ import prisma from '../../config/db.js';
 import { statusCode } from '../../utils/statusCode.js';
 import { OrgRole } from '../organizations/organization.types.js';
 
-import { AddMemberInput } from './member.types.js';
-
 class MemberService {
     async list(organizationId: string, requestingUserId: string) {
         await this.assertMembership(organizationId, requestingUserId);
@@ -11,9 +9,8 @@ class MemberService {
         const members = await prisma.membership.findMany({
             where: { organizationId },
             include: {
-                user: {
-                    select: { id: true, email: true, name: true },
-                },
+                user: { select: { id: true, email: true, name: true } },
+                role: true,
             },
             orderBy: { joinedAt: 'asc' },
         });
@@ -27,9 +24,8 @@ class MemberService {
         const member = await prisma.membership.findUnique({
             where: { id: memberId },
             include: {
-                user: {
-                    select: { id: true, email: true, name: true },
-                },
+                user: { select: { id: true, email: true, name: true } },
+                role: true,
             },
         });
 
@@ -42,9 +38,13 @@ class MemberService {
         return member;
     }
 
-    async add(organizationId: string, requestingUserId: string, data: AddMemberInput) {
+    async add(
+        organizationId: string,
+        requestingUserId: string,
+        data: { email: string; roleName: string },
+    ) {
         const requesterMembership = await this.assertMembership(organizationId, requestingUserId);
-        this.assertRole(requesterMembership.role, [OrgRole.OWNER, OrgRole.ADMIN]);
+        this.assertRole(requesterMembership.role.name, [OrgRole.OWNER, OrgRole.ADMIN]);
 
         const targetUser = await prisma.user.findUnique({ where: { email: data.email } });
         if (!targetUser) {
@@ -53,10 +53,17 @@ class MemberService {
             });
         }
 
+        const role = await prisma.role.findFirst({
+            where: { organizationId, name: data.roleName },
+        });
+        if (!role) {
+            throw Object.assign(new Error('Role not found in this organization'), {
+                statusCode: statusCode.NOT_FOUND,
+            });
+        }
+
         const existing = await prisma.membership.findUnique({
-            where: {
-                organizationId_userId: { organizationId, userId: targetUser.id },
-            },
+            where: { organizationId_userId: { organizationId, userId: targetUser.id } },
         });
         if (existing) {
             throw Object.assign(new Error('User is already a member of this organization'), {
@@ -64,20 +71,13 @@ class MemberService {
             });
         }
 
-        const membership = await prisma.membership.create({
-            data: {
-                organizationId,
-                userId: targetUser.id,
-                role: data.role,
-            },
+        return prisma.membership.create({
+            data: { organizationId, userId: targetUser.id, roleId: role.id },
             include: {
-                user: {
-                    select: { id: true, email: true, name: true },
-                },
+                user: { select: { id: true, email: true, name: true } },
+                role: true,
             },
         });
-
-        return membership;
     }
 
     async remove(
@@ -86,18 +86,21 @@ class MemberService {
         requestingUserId: string,
     ): Promise<void> {
         const requesterMembership = await this.assertMembership(organizationId, requestingUserId);
-        this.assertRole(requesterMembership.role, [OrgRole.OWNER, OrgRole.ADMIN]);
+        this.assertRole(requesterMembership.role.name, [OrgRole.OWNER, OrgRole.ADMIN]);
 
-        const target = await prisma.membership.findUnique({ where: { id: memberId } });
+        const target = await prisma.membership.findUnique({
+            where: { id: memberId },
+            include: { role: true },
+        });
         if (!target || target.organizationId !== organizationId) {
             throw Object.assign(new Error('Member not found'), {
                 statusCode: statusCode.NOT_FOUND,
             });
         }
 
-        if (target.role === OrgRole.OWNER) {
+        if (target.role.name === OrgRole.OWNER) {
             const ownerCount = await prisma.membership.count({
-                where: { organizationId, role: OrgRole.OWNER },
+                where: { organizationId, role: { name: OrgRole.OWNER } },
             });
             if (ownerCount <= 1) {
                 throw Object.assign(new Error('Cannot remove the last owner of an organization'), {
@@ -114,6 +117,7 @@ class MemberService {
     private async assertMembership(organizationId: string, userId: string) {
         const membership = await prisma.membership.findUnique({
             where: { organizationId_userId: { organizationId, userId } },
+            include: { role: true },
         });
 
         if (!membership) {
@@ -125,8 +129,8 @@ class MemberService {
         return membership;
     }
 
-    private assertRole(currentRole: string, allowed: string[]): void {
-        if (!allowed.includes(currentRole)) {
+    private assertRole(currentRoleName: string, allowed: string[]): void {
+        if (!allowed.includes(currentRoleName)) {
             throw Object.assign(new Error('You do not have permission to perform this action'), {
                 statusCode: statusCode.FORBIDDEN,
             });
