@@ -1,5 +1,6 @@
 import { Router } from 'express';
 
+import authenticate from '../../middlewares/authenticate.js';
 import validate from '../../middlewares/default/validate.js';
 
 import AuthController from './auth.controller.js';
@@ -12,6 +13,6 @@ router.post('/signup', validate(signupSchema), authController.signup);
 router.post('/login', validate(loginSchema), authController.login);
 router.post('/refresh', validate(refreshSchema), authController.refresh);
 router.post('/logout', authController.logout);
-// router.get('/me', authenticate, authController.me);
+router.get('/me', authenticate, authController.me);
 
 export default router;
