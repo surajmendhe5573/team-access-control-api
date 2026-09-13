@@ -1,31 +1,55 @@
 import { z } from 'zod';
 
-export const signupSchema = z.object({
+export const registerSchema = z.object({
     body: z.object({
-        email: z.string().trim().toLowerCase().email('Invalid email address'),
-        password: z
-            .string()
-            .min(8, 'Password must be at least 8 characters')
-            .max(72, 'Password must be at most 72 characters'),
-        name: z.string().trim().min(1).max(100).optional(),
+        email: z.string().email(),
+        password: z.string().min(8, 'Password must be at least 8 characters'),
+        name: z.string().min(2).max(100),
     }),
 });
 
 export const loginSchema = z.object({
     body: z.object({
-        email: z.string().trim().toLowerCase().email('Invalid email address'),
-        password: z.string().min(1, 'Password is required'),
+        email: z.string().email(),
+        password: z.string().min(1),
+        device: z.string().optional(),
     }),
 });
 
 export const refreshSchema = z.object({
-    body: z
-        .object({
-            refreshToken: z.string().min(1, 'Refresh token is required').optional(),
-        })
-        .optional()
-        .default({}),
+    body: z.object({
+        refreshToken: z.string().min(1),
+    }),
 });
 
-export type SignupInput = z.infer<typeof signupSchema>['body'];
-export type LoginInput = z.infer<typeof loginSchema>['body'];
+export const verifyEmailSchema = z.object({
+    body: z.object({
+        token: z.string().min(1),
+    }),
+});
+
+export const forgotPasswordSchema = z.object({
+    body: z.object({
+        email: z.string().email(),
+    }),
+});
+
+export const resetPasswordSchema = z.object({
+    body: z.object({
+        token: z.string().min(1),
+        newPassword: z.string().min(8),
+    }),
+});
+
+export const changePasswordSchema = z.object({
+    body: z.object({
+        currentPassword: z.string().min(1),
+        newPassword: z.string().min(8),
+    }),
+});
+
+export type RegisterBody = z.infer<typeof registerSchema>['body'];
+export type LoginBody = z.infer<typeof loginSchema>['body'];
+export type RefreshBody = z.infer<typeof refreshSchema>['body'];
+export type ResetPasswordBody = z.infer<typeof resetPasswordSchema>['body'];
+export type ChangePasswordBody = z.infer<typeof changePasswordSchema>['body'];
