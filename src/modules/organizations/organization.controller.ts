@@ -1,62 +1,58 @@
-import { NextFunction, Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 
 import { statusCode } from '../../utils/statusCode.js';
 
-import organizationService from './organization.service.js';
+import { organizationService } from './organization.service.js';
+import type { CreateOrganizationBody, UpdateOrganizationBody } from './organization.validation.js';
 
-export default class OrganizationController {
-    private organizationService = organizationService;
-
-    create = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const organizationController = {
+    async create(req: Request, res: Response, next: NextFunction) {
         try {
-            const userId = req.user!.sub;
-            const organization = await this.organizationService.create(userId, req.body);
-            res.success('Organization created successfully', { organization }, statusCode.CREATED);
+            const body = req.body as CreateOrganizationBody;
+            const org = await organizationService.create(body, req.user!.id);
+            res.success('Organization created successfully', org, statusCode.CREATED);
         } catch (err) {
             next(err);
         }
-    };
+    },
 
-    list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    async listMine(req: Request, res: Response, next: NextFunction) {
         try {
-            const userId = req.user!.sub;
-            const organizations = await this.organizationService.listForUser(userId);
-            res.success('Organizations fetched successfully', { organizations }, statusCode.OK);
+            const orgs = await organizationService.listMine(req.user!.id);
+            res.success('OK', orgs, statusCode.OK);
         } catch (err) {
             next(err);
         }
-    };
+    },
 
-    getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    async getById(req: Request<{ organizationId: string }>, res: Response, next: NextFunction) {
         try {
-            const userId = req.user!.sub;
-            const { id } = (req.validated as { params: { id: string } }).params;
-            const organization = await this.organizationService.getById(id, userId);
-            res.success('Organization fetched successfully', { organization }, statusCode.OK);
+            const { organizationId } = req.params;
+            const org = await organizationService.getById(organizationId, req.user!.id);
+            res.success('OK', org, statusCode.OK);
         } catch (err) {
             next(err);
         }
-    };
+    },
 
-    update = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    async update(req: Request<{ organizationId: string }>, res: Response, next: NextFunction) {
         try {
-            const userId = req.user!.sub;
-            const { id } = (req.validated as { params: { id: string } }).params;
-            const organization = await this.organizationService.update(id, userId, req.body);
-            res.success('Organization updated successfully', { organization }, statusCode.OK);
+            const { organizationId } = req.params;
+            const body = req.body as UpdateOrganizationBody;
+            const org = await organizationService.update(organizationId, req.user!.id, body);
+            res.success('Organization updated successfully', org, statusCode.OK);
         } catch (err) {
             next(err);
         }
-    };
+    },
 
-    remove = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    async remove(req: Request<{ organizationId: string }>, res: Response, next: NextFunction) {
         try {
-            const userId = req.user!.sub;
-            const { id } = (req.validated as { params: { id: string } }).params;
-            await this.organizationService.remove(id, userId);
+            const { organizationId } = req.params;
+            await organizationService.remove(organizationId, req.user!.id);
             res.success('Organization deleted successfully', {}, statusCode.OK);
         } catch (err) {
             next(err);
         }
-    };
-}
+    },
+};
