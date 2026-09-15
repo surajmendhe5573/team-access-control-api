@@ -1,7 +1,10 @@
 import { Router } from 'express';
 
 import authenticate from '../../middlewares/authenticate.js';
+import { loadOrganizationContext } from '../../middlewares/authorization.js';
 import validate from '../../middlewares/default/validate.js';
+import { memberController } from '../members/member.controller.js';
+import memberRoutes from '../members/member.route.js';
 
 import { organizationController } from './organization.controller.js';
 import {
@@ -24,5 +27,14 @@ router.delete(
     validate(organizationIdParamSchema),
     organizationController.remove,
 );
+
+router.post(
+    '/:organizationId/leave',
+    validate(organizationIdParamSchema),
+    loadOrganizationContext,
+    memberController.leave,
+);
+
+router.use('/:organizationId/members', memberRoutes);
 
 export default router;
