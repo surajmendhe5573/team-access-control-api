@@ -6,6 +6,7 @@ import validate from '../../middlewares/default/validate.js';
 import invitationRoutes from '../invitations/invitation.route.js';
 import { memberController } from '../members/member.controller.js';
 import memberRoutes from '../members/member.route.js';
+import roleRoutes from '../roles/role.route.js';
 
 import { organizationController } from './organization.controller.js';
 import {
@@ -38,5 +39,6 @@ router.post(
 
 router.use('/:organizationId/members', memberRoutes);
 router.use('/:organizationId/invitations', invitationRoutes);
+router.use('/:organizationId/roles', roleRoutes);
 
 export default router;
