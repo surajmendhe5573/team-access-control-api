@@ -1,46 +1,182 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["prismaSchemaFolder", "postgresqlExtensions"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider   = "postgresql"
-  extensions = [citext]
+  provider = "postgresql"
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String   
-  name      String?
+  id                    String   @id @default(uuid())
+  email                 String   @unique
+  passwordHash          String
+  name                  String
+  status                UserStatus @default(PENDING_VERIFICATION)
+  emailVerifiedAt       DateTime?
+  deletedAt             DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
-  isActive  Boolean  @default(true)
-
-  refreshTokens RefreshToken[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("users")
+  memberships           OrganizationMember[]
+  sessions              Session[]
+  auditLogs             AuditLog[] @relation("ActorLogs")
+  passwordResetTokens   PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  invitationsSent       Invitation[] @relation("InvitedBy")
 }
 
-model RefreshToken {
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+  DELETED
+}
+
+model Organization {
   id          String   @id @default(uuid())
-  tokenHash   String   @unique
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  replacedBy  String?  @unique
-
-  revoked     Boolean  @default(false)
-  revokedAt   DateTime?
-
-  expiresAt   DateTime
+  name        String
+  slug        String   @unique
+  deletedAt   DateTime?
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  ipAddress   String?
-  userAgent   String?
+  members     OrganizationMember[]
+  roles       Role[]
+  invitations Invitation[]
+  auditLogs   AuditLog[]
+}
+
+model OrganizationMember {
+  id             String   @id @default(uuid())
+  userId         String
+  organizationId String
+  roleId         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User         @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  role           Role         @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
+model Role {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  isSystem       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  members        OrganizationMember[]
+  permissions    RolePermission[]
+  invitations    Invitation[]
+
+  @@unique([organizationId, name])
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  key         String   @unique   // e.g. "members.remove"
+  description String?
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+}
+
+model Invitation {
+  id             String   @id @default(uuid())
+  organizationId String
+  email          String
+  roleId         String
+  tokenHash      String   @unique
+  status         InvitationStatus @default(PENDING)
+  invitedById    String
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  role           Role         @relation(fields: [roleId], references: [id])
+  invitedBy      User         @relation("InvitedBy", fields: [invitedById], references: [id])
+
+  @@index([organizationId, email, status])
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+model Session {
+  id               String   @id @default(uuid())
+  userId           String
+  refreshTokenHash String   @unique
+  rotatedFromId    String?
+  device           String?
+  userAgent        String?
+  ip               String?
+  createdAt        DateTime @default(now())
+  lastUsedAt       DateTime @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+
+  user             User @relation(fields: [userId], references: [id])
 
   @@index([userId])
-  @@map("refresh_tokens")
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  actorUserId    String
+  organizationId String?
+  action         String
+  targetType     String?
+  targetId       String?
+  ip             String?
+  userAgent      String?
+  metadata       Json?
+  requestId      String?
+  createdAt      DateTime @default(now())
+
+  actor          User @relation("ActorLogs", fields: [actorUserId], references: [id])
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, action, createdAt])
+  @@index([actorUserId])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user      User @relation(fields: [userId], references: [id])
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user      User @relation(fields: [userId], references: [id])
 }
