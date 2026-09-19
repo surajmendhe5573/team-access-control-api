@@ -1,23 +1,48 @@
 import { Router } from 'express';
 
-import authenticate from '../../middlewares/authenticate.js';
+import { loadOrganizationContext, requirePermission } from '../../middlewares/authorization.js';
 import validate from '../../middlewares/default/validate.js';
 
-import MemberController from './member.controller.js';
+import { memberController } from './member.controller.js';
 import {
-    addMemberSchema,
-    memberIdParamSchema,
-    organizationIdParamSchema,
-} from './member.validation.js';
+    listMembersSchema,
+    memberParamsSchema,
+    updateMemberRoleSchema,
+} from './member.validations.js';
 
-const router = Router({ mergeParams: true }); // needed to access :id from the parent router
-const memberController = new MemberController();
+// mergeParams so :organizationId from the parent router (organization.routes.ts)
+// is available on req.params here
+const router = Router({ mergeParams: true });
 
-router.use(authenticate);
+// every route below needs org membership resolved first
+router.use(loadOrganizationContext);
 
-router.get('/', validate(organizationIdParamSchema), memberController.list);
-router.get('/:memberId', validate(memberIdParamSchema), memberController.getById);
-router.post('/', validate(addMemberSchema), memberController.add);
-router.delete('/:memberId', validate(memberIdParamSchema), memberController.remove);
+router.get(
+    '/',
+    validate(listMembersSchema),
+    requirePermission('members.read'),
+    memberController.list,
+);
+
+router.get(
+    '/:memberId',
+    validate(memberParamsSchema),
+    requirePermission('members.read'),
+    memberController.getById,
+);
+
+router.patch(
+    '/:memberId/role',
+    validate(updateMemberRoleSchema),
+    requirePermission('members.update'),
+    memberController.updateRole,
+);
+
+router.delete(
+    '/:memberId',
+    validate(memberParamsSchema),
+    requirePermission('members.remove'),
+    memberController.remove,
+);
 
 export default router;

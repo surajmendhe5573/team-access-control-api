@@ -1,11 +1,13 @@
 import { Router } from 'express';
 
 import authenticate from '../../middlewares/authenticate.js';
+import { loadOrganizationContext } from '../../middlewares/authorization.js';
 import validate from '../../middlewares/default/validate.js';
+import invitationRoutes from '../invitations/invitation.route.js';
+import { memberController } from '../members/member.controller.js';
 import memberRoutes from '../members/member.route.js';
-import roleRoutes from '../roles/role.routes.js';
 
-import OrganizationController from './organization.controller.js';
+import { organizationController } from './organization.controller.js';
 import {
     createOrganizationSchema,
     organizationIdParamSchema,
@@ -13,16 +15,28 @@ import {
 } from './organization.validation.js';
 
 const router = Router();
-const organizationController = new OrganizationController();
 
+// every organizations route requires a logged-in user
 router.use(authenticate);
-router.use('/:id/members', memberRoutes);
-router.use('/:id/roles', roleRoutes);
 
 router.post('/', validate(createOrganizationSchema), organizationController.create);
-router.get('/', organizationController.list);
-router.get('/:id', validate(organizationIdParamSchema), organizationController.getById);
-router.patch('/:id', validate(updateOrganizationSchema), organizationController.update);
-router.delete('/:id', validate(organizationIdParamSchema), organizationController.remove);
+router.get('/', organizationController.listMine);
+router.get('/:organizationId', validate(organizationIdParamSchema), organizationController.getById);
+router.patch('/:organizationId', validate(updateOrganizationSchema), organizationController.update);
+router.delete(
+    '/:organizationId',
+    validate(organizationIdParamSchema),
+    organizationController.remove,
+);
+
+router.post(
+    '/:organizationId/leave',
+    validate(organizationIdParamSchema),
+    loadOrganizationContext,
+    memberController.leave,
+);
+
+router.use('/:organizationId/members', memberRoutes);
+router.use('/:organizationId/invitations', invitationRoutes);
 
 export default router;

@@ -1,56 +1,85 @@
-import { NextFunction, Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 
 import { statusCode } from '../../utils/statusCode.js';
 
-import memberService from './member.service.js';
+import { memberService } from './member.service.js';
+import type { UpdateMemberRoleBody } from './member.validations.js';
 
-export default class MemberController {
-    private memberService = memberService;
-
-    list = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const memberController = {
+    async list(req: Request<{ organizationId: string }>, res: Response, next: NextFunction) {
         try {
-            const userId = req.user!.sub;
-            const { params } = req.validated as { params: { id: string } };
-            const members = await this.memberService.list(params.id, userId);
-            res.success('Members fetched successfully', { members }, statusCode.OK);
+            const { organizationId } = req.params;
+            const page = Number(req.query.page) || 1;
+            const limit = Number(req.query.limit) || 20;
+            const result = await memberService.list(organizationId, page, limit);
+            res.success('OK', result, statusCode.OK);
         } catch (err) {
             next(err);
         }
-    };
+    },
 
-    getById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    async getById(
+        req: Request<{ organizationId: string; memberId: string }>,
+        res: Response,
+        next: NextFunction,
+    ) {
         try {
-            const userId = req.user!.sub;
-            const { params } = req.validated as { params: { id: string; memberId: string } };
-            const member = await this.memberService.getById(params.id, params.memberId, userId);
-            res.success('Member fetched successfully', { member }, statusCode.OK);
+            const { organizationId, memberId } = req.params;
+            const member = await memberService.getById(organizationId, memberId);
+            res.success('OK', member, statusCode.OK);
         } catch (err) {
             next(err);
         }
-    };
+    },
 
-    add = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    async updateRole(
+        req: Request<{ organizationId: string; memberId: string }>,
+        res: Response,
+        next: NextFunction,
+    ) {
         try {
-            const userId = req.user!.sub;
-            const { params, body } = req.validated as {
-                params: { id: string };
-                body: { email: string; roleName: string };
-            };
-            const member = await this.memberService.add(params.id, userId, body);
-            res.success('Member added successfully', { member }, statusCode.CREATED);
+            const { organizationId, memberId } = req.params;
+            const { roleId } = req.body as UpdateMemberRoleBody;
+            const member = await memberService.updateRole(
+                organizationId,
+                memberId,
+                roleId,
+                req.organizationMembership!,
+                { ip: req.ip, userAgent: req.headers['user-agent'] },
+            );
+            res.success('Member role updated successfully', member, statusCode.OK);
         } catch (err) {
             next(err);
         }
-    };
+    },
 
-    remove = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    async remove(
+        req: Request<{ organizationId: string; memberId: string }>,
+        res: Response,
+        next: NextFunction,
+    ) {
         try {
-            const userId = req.user!.sub;
-            const { params } = req.validated as { params: { id: string; memberId: string } };
-            await this.memberService.remove(params.id, params.memberId, userId);
+            const { organizationId, memberId } = req.params;
+            await memberService.remove(organizationId, memberId, req.organizationMembership!, {
+                ip: req.ip,
+                userAgent: req.headers['user-agent'],
+            });
             res.success('Member removed successfully', {}, statusCode.OK);
         } catch (err) {
             next(err);
         }
-    };
-}
+    },
+
+    async leave(req: Request<{ organizationId: string }>, res: Response, next: NextFunction) {
+        try {
+            const { organizationId } = req.params;
+            await memberService.leave(organizationId, req.organizationMembership!, {
+                ip: req.ip,
+                userAgent: req.headers['user-agent'],
+            });
+            res.success('Left organization successfully', {}, statusCode.OK);
+        } catch (err) {
+            next(err);
+        }
+    },
+};

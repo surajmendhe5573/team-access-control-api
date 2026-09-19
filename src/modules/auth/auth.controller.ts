@@ -1,93 +1,170 @@
-import { NextFunction, Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 
 import { statusCode } from '../../utils/statusCode.js';
 
-import AuthService from './auth.service.js';
-
-const isLocal = process.env.NODE_ENV === 'local';
-const isDev = process.env.NODE_ENV === 'development';
-const isProd = process.env.NODE_ENV === 'production';
-
-const cookieSameSite: 'lax' | 'strict' | 'none' = isDev || isProd ? 'none' : 'lax';
-const cookieSecure = isDev || isProd;
-
-const refreshTokenCookieOptions = {
-    path: '/api/v1/auth',
-    httpOnly: true,
-    secure: cookieSecure,
-    sameSite: cookieSameSite,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-};
-
-const clearRefreshTokenOptions = {
-    path: '/api/v1/auth',
-    httpOnly: true,
-    secure: cookieSecure,
-    sameSite: cookieSameSite,
-};
+import { authService } from './auth.service.js';
+import type {
+    ChangePasswordBody,
+    LoginBody,
+    RegisterBody,
+    ResetPasswordBody,
+} from './auth.validation.js';
 
 const REFRESH_COOKIE_NAME = 'refreshToken';
+const REFRESH_COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
-export default class AuthController {
-    private authService = AuthService;
+function setRefreshCookie(res: Response, token: string) {
+    res.cookie(REFRESH_COOKIE_NAME, token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: REFRESH_COOKIE_MAX_AGE_MS,
+        path: '/api/v1/auth',
+    });
+}
 
-    signup = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+function getRefreshTokenFromRequest(req: Request): string | undefined {
+    return req.cookies?.[REFRESH_COOKIE_NAME] ?? req.body?.refreshToken;
+}
+
+export const authController = {
+    async register(req: Request, res: Response, next: NextFunction) {
         try {
-            const user = await this.authService.signup(req.body);
-            res.success('Signup successful, please log in', { user }, statusCode.CREATED);
+            const body = req.body as RegisterBody;
+            const result = await authService.register(body);
+            res.success(
+                'Registered successfully. Please verify your email.',
+                result,
+                statusCode.CREATED,
+            );
         } catch (err) {
             next(err);
         }
-    };
+    },
 
-    login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    async verifyEmail(req: Request, res: Response, next: NextFunction) {
         try {
-            const { accessToken, refreshToken } = await this.authService.login(req.body);
-
-            res.cookie(REFRESH_COOKIE_NAME, refreshToken, refreshTokenCookieOptions);
-            res.success('Login successful', { accessToken }, statusCode.OK);
+            const { token } = req.body as { token: string };
+            await authService.verifyEmail(token);
+            res.success('Email verified successfully', {}, statusCode.OK);
         } catch (err) {
             next(err);
         }
-    };
+    },
 
-    refresh = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    async login(req: Request, res: Response, next: NextFunction) {
         try {
-            const incoming = req.cookies?.[REFRESH_COOKIE_NAME] ?? req.body?.refreshToken;
-            if (!incoming) {
-                res.success('Refresh token missing', {}, statusCode.UNAUTHORIZED);
+            const body = req.body as LoginBody;
+            const { tokens, user } = await authService.login(body, {
+                userAgent: req.headers['user-agent'],
+                ip: req.ip,
+            });
+
+            setRefreshCookie(res, tokens.refreshToken);
+
+            res.success(
+                'Login successful',
+                {
+                    accessToken: tokens.accessToken,
+                    refreshToken: tokens.refreshToken,
+                    expiresIn: tokens.expiresIn,
+                    user,
+                },
+                statusCode.OK,
+            );
+        } catch (err) {
+            next(err);
+        }
+    },
+
+    async refresh(req: Request, res: Response, next: NextFunction) {
+        try {
+            const refreshToken = getRefreshTokenFromRequest(req);
+            if (!refreshToken) {
+                res.fail('Refresh token missing', statusCode.UNAUTHORIZED);
                 return;
             }
 
-            const { accessToken, refreshToken } = await this.authService.refreshTokens(incoming);
+            const tokens = await authService.refresh(refreshToken);
+            setRefreshCookie(res, tokens.refreshToken);
 
-            res.cookie(REFRESH_COOKIE_NAME, refreshToken, refreshTokenCookieOptions);
-            res.success('Token refreshed', { accessToken }, statusCode.OK);
+            res.success(
+                'Token refreshed',
+                {
+                    accessToken: tokens.accessToken,
+                    refreshToken: tokens.refreshToken,
+                    expiresIn: tokens.expiresIn,
+                },
+                statusCode.OK,
+            );
         } catch (err) {
             next(err);
         }
-    };
+    },
 
-    logout = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    async logout(req: Request, res: Response, next: NextFunction) {
         try {
-            const incoming = req.cookies?.[REFRESH_COOKIE_NAME] ?? req.body?.refreshToken;
-            if (incoming) {
-                await this.authService.logout(incoming);
+            const refreshToken = getRefreshTokenFromRequest(req);
+            if (refreshToken) {
+                await authService.logout(refreshToken);
             }
-            res.clearCookie(REFRESH_COOKIE_NAME, clearRefreshTokenOptions);
+            res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/v1/auth' });
             res.success('Logged out successfully', {}, statusCode.OK);
         } catch (err) {
             next(err);
         }
-    };
+    },
 
-    me = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    async logoutAll(req: Request, res: Response, next: NextFunction) {
         try {
-            const userId = req.user?.sub;
-            const user = await this.authService.getMe(userId as string);
-            res.success('User fetched successfully', { user }, statusCode.OK);
+            await authService.logoutAll(req.user!.id);
+            res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/v1/auth' });
+            res.success('Logged out from all devices', {}, statusCode.OK);
         } catch (err) {
             next(err);
         }
-    };
-}
+    },
+
+    async me(req: Request, res: Response, next: NextFunction) {
+        try {
+            const user = await authService.getMe(req.user!.id);
+            res.success('OK', user, statusCode.OK);
+        } catch (err) {
+            next(err);
+        }
+    },
+
+    async changePassword(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { currentPassword, newPassword } = req.body as ChangePasswordBody;
+            await authService.changePassword(req.user!.id, currentPassword, newPassword);
+            res.success('Password changed successfully', {}, statusCode.OK);
+        } catch (err) {
+            next(err);
+        }
+    },
+
+    async forgotPassword(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { email } = req.body as { email: string };
+            await authService.forgotPassword(email);
+            res.success(
+                'If an account exists for this email, a reset link has been sent.',
+                {},
+                statusCode.OK,
+            );
+        } catch (err) {
+            next(err);
+        }
+    },
+
+    async resetPassword(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { token, newPassword } = req.body as ResetPasswordBody;
+            await authService.resetPassword(token, newPassword);
+            res.success('Password reset successfully', {}, statusCode.OK);
+        } catch (err) {
+            next(err);
+        }
+    },
+};

@@ -1,122 +1,131 @@
-import prisma from '../../config/db.js';
 import { generateSlug } from '../../utils/generateSlug.js';
-import { statusCode } from '../../utils/statusCode.js';
-import roleService from '../roles/role.service.js';
 
-import { CreateOrganizationInput, OrgRole, UpdateOrganizationInput } from './organization.types.js';
+import { organizationRepository } from './organization.repository.js';
+import type {
+    CreateOrganizationInput,
+    SafeOrganization,
+    UpdateOrganizationInput,
+} from './organization.types.js';
 
-class OrganizationService {
-    async create(userId: string, data: CreateOrganizationInput) {
-        const slug = generateSlug(data.name);
-
-        const organization = await prisma.organization.create({
-            data: { name: data.name, slug },
-        });
-
-        const roleIds = await roleService.seedDefaultRoles(organization.id);
-
-        await prisma.membership.create({
-            data: {
-                organizationId: organization.id,
-                userId,
-                roleId: roleIds.OWNER,
-            },
-        });
-
-        return organization;
-    }
-
-    async listForUser(userId: string) {
-        const memberships = await prisma.membership.findMany({
-            where: { userId },
-            include: { organization: true, role: true },
-        });
-
-        return memberships.map((m) => ({
-            ...m.organization,
-            myRole: m.role.name,
-        }));
-    }
-
-    async getById(organizationId: string, userId: string) {
-        const organization = await prisma.organization.findUnique({
-            where: { id: organizationId },
-        });
-
-        if (!organization) {
-            throw Object.assign(new Error('Organization not found'), {
-                statusCode: statusCode.NOT_FOUND,
-            });
-        }
-
-        const membership = await this.assertMembership(organizationId, userId);
-
-        return { ...organization, myRole: membership.role.name };
-    }
-
-    async update(organizationId: string, userId: string, data: UpdateOrganizationInput) {
-        const existing = await prisma.organization.findUnique({
-            where: { id: organizationId },
-        });
-
-        if (!existing) {
-            throw Object.assign(new Error('Organization not found'), {
-                statusCode: statusCode.NOT_FOUND,
-            });
-        }
-
-        const membership = await this.assertMembership(organizationId, userId);
-        this.assertRole(membership.role.name, [OrgRole.OWNER, OrgRole.ADMIN]);
-
-        const organization = await prisma.organization.update({
-            where: { id: organizationId },
-            data: { name: data.name },
-        });
-
-        return organization;
-    }
-
-    async remove(organizationId: string, userId: string): Promise<void> {
-        const existing = await prisma.organization.findUnique({
-            where: { id: organizationId },
-        });
-
-        if (!existing) {
-            throw Object.assign(new Error('Organization not found'), {
-                statusCode: statusCode.NOT_FOUND,
-            });
-        }
-
-        const membership = await this.assertMembership(organizationId, userId);
-        this.assertRole(membership.role.name, [OrgRole.OWNER]);
-
-        await prisma.organization.delete({ where: { id: organizationId } });
-    }
-
-    // ---------- Internal guards ----------
-
-    private async assertMembership(organizationId: string, userId: string) {
-        const membership = await prisma.membership.findUnique({
-            where: { organizationId_userId: { organizationId, userId } },
-            include: { role: true },
-        });
-
-        if (!membership) {
-            throw Object.assign(new Error('You are not a member of this organization'), {
-                statusCode: statusCode.FORBIDDEN,
-            });
-        }
-
-        return membership; // membership.role.name now available
-    }
-
-    private assertRole(currentRoleName: string, allowed: string[]): void {
-        if (!allowed.includes(currentRoleName)) {
-            throw Object.assign(new Error('You do not have permission to perform this action'), {
-                statusCode: statusCode.FORBIDDEN,
-            });
-        }
+class AppError extends Error {
+    constructor(
+        public code: string,
+        public statusCode: number,
+        message: string,
+    ) {
+        super(message);
     }
 }
 
-export default new OrganizationService();
+function toSafeOrganization(org: {
+    id: string;
+    name: string;
+    slug: string;
+    createdAt: Date;
+    updatedAt: Date;
+}): SafeOrganization {
+    return {
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        createdAt: org.createdAt,
+        updatedAt: org.updatedAt,
+    };
+}
+
+// NOTE: membership + role checks below are inline for now. Once the shared
+// authorization middleware chain (loadOrganizationContext + requirePermission)
+// is built, these checks should move there instead of living in each service.
+export const organizationService = {
+    async create(input: CreateOrganizationInput, creatorUserId: string): Promise<SafeOrganization> {
+        const slug = input.slug ?? generateSlug(input.name);
+
+        const existing = await organizationRepository.findBySlug(slug);
+        if (existing) {
+            throw new AppError('CONFLICT', 409, 'An organization with this slug already exists');
+        }
+
+        const org = await organizationRepository.createWithOwner({
+            name: input.name,
+            slug,
+            creatorUserId,
+        });
+
+        return toSafeOrganization(org);
+    },
+
+    async listMine(userId: string): Promise<SafeOrganization[]> {
+        const orgs = await organizationRepository.listForUser(userId);
+        return orgs.map(toSafeOrganization);
+    },
+
+    async getById(organizationId: string, userId: string): Promise<SafeOrganization> {
+        const membership = await organizationRepository.findMembership(userId, organizationId);
+        if (!membership) {
+            throw new AppError('FORBIDDEN', 403, 'You do not have access to this organization');
+        }
+
+        const org = await organizationRepository.findById(organizationId);
+        if (!org) {
+            throw new AppError('NOT_FOUND', 404, 'Organization not found');
+        }
+
+        return toSafeOrganization(org);
+    },
+
+    async update(
+        organizationId: string,
+        userId: string,
+        input: UpdateOrganizationInput,
+    ): Promise<SafeOrganization> {
+        const membership = await organizationRepository.findMembership(userId, organizationId);
+        if (!membership) {
+            throw new AppError('FORBIDDEN', 403, 'You do not have access to this organization');
+        }
+        if (!['OWNER', 'ADMIN'].includes(membership.role.name)) {
+            throw new AppError(
+                'FORBIDDEN',
+                403,
+                'Only owners or admins can update the organization',
+            );
+        }
+
+        if (input.slug) {
+            const existing = await organizationRepository.findBySlug(input.slug);
+            if (existing && existing.id !== organizationId) {
+                throw new AppError(
+                    'CONFLICT',
+                    409,
+                    'An organization with this slug already exists',
+                );
+            }
+        }
+
+        const org = await organizationRepository.findById(organizationId);
+        if (!org) {
+            throw new AppError('NOT_FOUND', 404, 'Organization not found');
+        }
+
+        const updated = await organizationRepository.update(organizationId, input);
+        return toSafeOrganization(updated);
+    },
+
+    async remove(organizationId: string, userId: string): Promise<void> {
+        const membership = await organizationRepository.findMembership(userId, organizationId);
+        if (!membership) {
+            throw new AppError('FORBIDDEN', 403, 'You do not have access to this organization');
+        }
+        if (membership.role.name !== 'OWNER') {
+            throw new AppError('FORBIDDEN', 403, 'Only an owner can delete the organization');
+        }
+
+        const org = await organizationRepository.findById(organizationId);
+        if (!org) {
+            throw new AppError('NOT_FOUND', 404, 'Organization not found');
+        }
+
+        await organizationRepository.softDelete(organizationId);
+    },
+};
+
+export { AppError };

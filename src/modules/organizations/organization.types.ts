@@ -1,16 +1,20 @@
 export interface CreateOrganizationInput {
     name: string;
+    slug?: string;
 }
 
 export interface UpdateOrganizationInput {
     name?: string;
+    slug?: string;
 }
 
-export const OrgRole = {
-    OWNER: 'OWNER',
-    ADMIN: 'ADMIN',
-    MEMBER: 'MEMBER',
-    VIEWER: 'VIEWER',
-} as const;
+export interface SafeOrganization {
+    id: string;
+    name: string;
+    slug: string;
+    createdAt: Date;
+    updatedAt: Date;
+}
 
-export type OrgRoleType = (typeof OrgRole)[keyof typeof OrgRole];
+export const SYSTEM_ROLES = ['OWNER', 'ADMIN', 'MANAGER', 'MEMBER', 'VIEWER'] as const;
+export type SystemRoleName = (typeof SYSTEM_ROLES)[number];
