@@ -38,18 +38,19 @@ function toSafeUser(user: { id: string; email: string; name: string; status: str
 
 import type { SignOptions } from 'jsonwebtoken';
 
-function signAccessToken(userId: string, email: string): string {
-    return jwt.sign({ sub: userId, email }, config.jwt.accessSecret, {
+function signAccessToken(userId: string, email: string, sessionId: string): string {
+    return jwt.sign({ sub: userId, email, sessionId }, config.jwt.accessSecret, {
         expiresIn: config.jwt.accessExpiresIn as SignOptions['expiresIn'],
     });
 }
 
-function verifyAccessToken(token: string): { id: string; email: string } {
+function verifyAccessToken(token: string): { id: string; email: string; sessionId: string } {
     const payload = jwt.verify(token, config.jwt.accessSecret) as {
         sub: string;
         email: string;
+        sessionId: string;
     };
-    return { id: payload.sub, email: payload.email };
+    return { id: payload.sub, email: payload.email, sessionId: payload.sessionId };
 }
 
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days, matches .env default
@@ -63,7 +64,7 @@ async function issueSessionAndTokens(
     const refreshTokenHash = hashToken(rawRefreshToken);
     const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
 
-    await authRepository.createSession({
+    const session = await authRepository.createSession({
         userId,
         refreshTokenHash,
         device: meta.device,
@@ -73,7 +74,7 @@ async function issueSessionAndTokens(
     });
 
     return {
-        accessToken: signAccessToken(userId, email),
+        accessToken: signAccessToken(userId, email, session.id),
         // client stores this opaque token; sessionId is not exposed separately
         refreshToken: rawRefreshToken,
         expiresIn: 15 * 60, // seconds, matches JWT_ACCESS_EXPIRES_IN=15m
@@ -189,13 +190,13 @@ const authService = {
         const newRefreshTokenHash = hashToken(rawNewRefreshToken);
         const newExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
 
-        await authRepository.rotateSession(session.id, {
+        const newSession = await authRepository.rotateSession(session.id, {
             newRefreshTokenHash,
             newExpiresAt,
         });
 
         return {
-            accessToken: signAccessToken(user.id, user.email),
+            accessToken: signAccessToken(user.id, user.email, newSession.id),
             refreshToken: rawNewRefreshToken,
             expiresIn: 15 * 60,
         };

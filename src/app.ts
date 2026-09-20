@@ -15,6 +15,7 @@ import authRoutes from './modules/auth/auth.routes.js';
 import invitationPublicRoutes from './modules/invitations/invitation.public.route.js';
 import organizationRoutes from './modules/organizations/organization.routes.js';
 import permissionRoutes from './modules/permissions/permission.route.js';
+import sessionRoutes from './modules/sessions/session.route.js';
 
 const app = express();
 
@@ -59,6 +60,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/organizations', organizationRoutes);
 app.use('/api/v1/invitations', invitationPublicRoutes);
 app.use('/api/v1/permissions', permissionRoutes);
+app.use('/api/v1/sessions', sessionRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
