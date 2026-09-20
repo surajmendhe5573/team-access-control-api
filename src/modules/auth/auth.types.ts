@@ -26,6 +26,7 @@ export interface AccessTokenPayload {
 export interface JwtPayload {
     id: string;
     email: string;
+    sessionId: string;
 }
 
 export interface RefreshTokenPayload {
