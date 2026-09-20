@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import { loadOrganizationContext, requirePermission } from '../../middlewares/authorization.js';
 import validate from '../../middlewares/default/validate.js';
+import rolePermissionRoutes from '../role-permissions/role-permission.route.js';
 
 import { roleController } from './role.controller.js';
 import { createRoleSchema, roleParamsSchema, updateRoleSchema } from './role.validation.js';
@@ -40,5 +41,7 @@ router.delete(
     requirePermission('roles.delete'),
     roleController.remove,
 );
+
+router.use('/:roleId/permissions', rolePermissionRoutes);
 
 export default router;
