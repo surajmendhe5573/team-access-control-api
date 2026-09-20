@@ -3,6 +3,7 @@ import { Router } from 'express';
 import authenticate from '../../middlewares/authenticate.js';
 import { loadOrganizationContext } from '../../middlewares/authorization.js';
 import validate from '../../middlewares/default/validate.js';
+import auditLogRoutes from '../audit-logs/audit-log.route.js';
 import invitationRoutes from '../invitations/invitation.route.js';
 import { memberController } from '../members/member.controller.js';
 import memberRoutes from '../members/member.route.js';
@@ -40,5 +41,6 @@ router.post(
 router.use('/:organizationId/members', memberRoutes);
 router.use('/:organizationId/invitations', invitationRoutes);
 router.use('/:organizationId/roles', roleRoutes);
+router.use('/:organizationId/audit-logs', auditLogRoutes);
 
 export default router;
