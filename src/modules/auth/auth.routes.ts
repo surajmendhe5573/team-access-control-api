@@ -1,6 +1,12 @@
 import { Router } from 'express';
 
 import authenticate from '../../middlewares/authenticate.js';
+import {
+    forgotPasswordRateLimiter,
+    loginRateLimiter,
+    refreshRateLimiter,
+    registerRateLimiter,
+} from '../../middlewares/default/authRateLimiters.js';
 import validate from '../../middlewares/default/validate.js';
 
 import { authController } from './auth.controller.js';
@@ -17,11 +23,16 @@ import {
 const router = Router();
 
 // Public
-router.post('/register', validate(registerSchema), authController.register);
+router.post('/register', registerRateLimiter, validate(registerSchema), authController.register);
 router.post('/verify-email', validate(verifyEmailSchema), authController.verifyEmail);
-router.post('/login', validate(loginSchema), authController.login);
-router.post('/refresh', validate(refreshSchema), authController.refresh);
-router.post('/forgot-password', validate(forgotPasswordSchema), authController.forgotPassword);
+router.post('/login', loginRateLimiter, validate(loginSchema), authController.login);
+router.post('/refresh', refreshRateLimiter, validate(refreshSchema), authController.refresh);
+router.post(
+    '/forgot-password',
+    forgotPasswordRateLimiter,
+    validate(forgotPasswordSchema),
+    authController.forgotPassword,
+);
 router.post('/reset-password', validate(resetPasswordSchema), authController.resetPassword);
 
 // Authenticated
