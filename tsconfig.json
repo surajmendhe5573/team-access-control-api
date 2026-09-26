@@ -1,41 +1,6 @@
-// {
-//   "compilerOptions": {
-//     "target": "ES2022",
-//     "module": "NodeNext",
-//     "moduleResolution": "NodeNext",
-//     "lib": ["ES2022"],
-//     "outDir": "dist",
-//     "rootDir": "src",
-
-//     "strict": true,
-//     "noImplicitAny": true,
-//     "strictNullChecks": true,
-//     "strictFunctionTypes": true,
-//     "noUnusedLocals": true,
-//     "noUnusedParameters": true,
-//     "noImplicitReturns": true,
-//     "noFallthroughCasesInSwitch": true,
-//     "noUncheckedIndexedAccess": true,
-
-//     "esModuleInterop": true,
-//     "forceConsistentCasingInFileNames": true,
-//     "skipLibCheck": true,
-//     "resolveJsonModule": true,
-//     "declaration": false,
-//     "sourceMap": true,
-
-//     "baseUrl": "src",
-//     "paths": {
-//       "@/*": ["*"]
-//     }
-//   },
-//   "include": ["src/**/*.ts"],
-//   "exclude": ["node_modules", "dist", "tests"]
-// }
-
 {
   "compilerOptions": {
-    "ignoreDeprecations": "6.0",
+    // "ignoreDeprecations": "6.0",
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",

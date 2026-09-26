@@ -30,7 +30,7 @@ const rateLimiter = ({
         standardHeaders: true,
         legacyHeaders: false,
         store: new RedisStore(redisStoreOptions),
-        handler: (req, res) => {
+        handler: (_req, res) => {
             const retryAfterSeconds = Math.ceil(windowMs / 1000);
             res.set('Retry-After', String(retryAfterSeconds));
             res.status(429).json({

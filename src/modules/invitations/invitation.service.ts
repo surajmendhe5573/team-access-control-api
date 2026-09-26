@@ -197,7 +197,7 @@ export const invitationService = {
     async resend(
         organizationId: string,
         invitationId: string,
-        actor: OrganizationMembershipContext,
+        _actor: OrganizationMembershipContext,
     ): Promise<SafeInvitation> {
         const invitation = await invitationRepository.findById(organizationId, invitationId);
         if (!invitation) {

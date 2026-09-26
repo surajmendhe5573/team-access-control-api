@@ -44,7 +44,7 @@ app.use(cookieParser());
 app.use(compression());
 app.use(responseFormatter);
 
-app.get('/health', (req: Request, res: Response) => {
+app.get('/health', (_req: Request, res: Response) => {
     res.status(200).json({
         status: 'UP',
         service: 'auth-service',
@@ -52,7 +52,7 @@ app.get('/health', (req: Request, res: Response) => {
     });
 });
 
-app.get('/', (req: Request, res: Response) => {
+app.get('/', (_req: Request, res: Response) => {
     res.send('Server is running! Welcome to the backend');
 });
 

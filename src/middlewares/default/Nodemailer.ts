@@ -12,7 +12,7 @@ const transporter: Transporter = nodemailer.createTransport({
     },
 });
 
-transporter.verify((error, success) => {
+transporter.verify((error, _success) => {
     if (error) {
         console.error('❌ Mail server connection failed:', error);
     } else {

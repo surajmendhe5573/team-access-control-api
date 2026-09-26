@@ -5,7 +5,7 @@ import { statusCode } from '../../utils/statusCode.js';
 import { permissionService } from './permission.service.js';
 
 export const permissionController = {
-    async list(req: Request, res: Response, next: NextFunction) {
+    async list(_req: Request, res: Response, next: NextFunction) {
         try {
             const permissions = await permissionService.list();
             res.success('OK', permissions, statusCode.OK);
