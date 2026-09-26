@@ -2,7 +2,7 @@
 
 A production-style multi-tenant **IAM (Identity & Access Management) backend** — the kind of system that sits behind every real SaaS product, built to demonstrate backend engineering depth beyond basic CRUD: authentication with refresh token rotation, role-based access control with a real permission catalog, multi-tenant data isolation, session management, and audit logging.
 
-Built with **Node.js, TypeScript, Express, PostgreSQL, Prisma, and Redis**.
+Built with **Node.js, TypeScript, Express, PostgreSQL, Prisma, Redis and Docker**.
 
 ---
 
